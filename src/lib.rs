@@ -9,15 +9,15 @@ use lfsr::LFSRF;
 pub trait Memorable: Hash + Eq {}
 
 pub trait Derangement {
-    type T;
+    type Item;
     fn len(&self) -> usize;
-    fn get(&self, at: usize) -> Self::T;
+    fn get(&self, at: usize) -> Self::Item;
     fn iter<'a>(&'a self) -> DerangementIter<'a, Self> {
         DerangementIter::new(self)
     }
     fn map<'a, F, Y>(&'a self, f: F) -> DerangementMap<'a, Self, F>
     where
-        F: Fn(Self::T) -> Y,
+        F: Fn(Self::Item) -> Y,
     {
         DerangementMap { v: self, f }
     }
@@ -30,13 +30,13 @@ pub struct DerangementMap<'a, D: ?Sized, F> {
 impl<'a, D: ?Sized, F, R> Derangement for DerangementMap<'a, D, F>
 where
     D: Derangement,
-    F: Fn(D::T) -> R,
+    F: Fn(D::Item) -> R,
 {
-    type T = R;
+    type Item = R;
     fn len(&self) -> usize {
         self.v.len()
     }
-    fn get(&self, at: usize) -> Self::T {
+    fn get(&self, at: usize) -> Self::Item {
         (self.f)(self.v.get(at))
     }
 }
@@ -59,7 +59,7 @@ impl<'a, D> Iterator for DerangementIter<'a, D>
 where
     D: Derangement,
 {
-    type Item = D::T;
+    type Item = D::Item;
     fn next(&mut self) -> Option<Self::Item> {
         if self.at >= self.len {
             None
@@ -75,10 +75,10 @@ where
 pub struct CompoundDerangement<A, B>(pub A, pub B);
 impl<A, B, TA, TB> Derangement for CompoundDerangement<A, B>
 where
-    A: Derangement<T = TA>,
-    B: Derangement<T = TB>,
+    A: Derangement<Item = TA>,
+    B: Derangement<Item = TB>,
 {
-    type T = (TA, TB);
+    type Item = (TA, TB);
     fn len(&self) -> usize {
         self.0.len() * self.1.len()
     }
@@ -91,7 +91,7 @@ where
 }
 pub struct AtomicDeranger(pub usize);
 impl Derangement for AtomicDeranger {
-    type T = usize;
+    type Item = usize;
     fn len(&self) -> usize {
         self.0
     }
@@ -102,10 +102,10 @@ impl Derangement for AtomicDeranger {
 pub struct ConjunctiveDeranger<A, B>(A, B);
 impl<A, B, TA, TB> Derangement for ConjunctiveDeranger<A, B>
 where
-    A: Derangement<T = TA>,
-    B: Derangement<T = TB>,
+    A: Derangement<Item = TA>,
+    B: Derangement<Item = TB>,
 {
-    type T = Result<TA, TB>;
+    type Item = Result<TA, TB>;
     fn len(&self) -> usize {
         self.0.len() + self.1.len()
     }
@@ -139,11 +139,11 @@ impl<D> Derangement for LFSRShuffle<D>
 where
     D: Derangement,
 {
-    type T = D::T;
+    type Item = D::Item;
     fn len(&self) -> usize {
         self.v.len()
     }
-    fn get(&self, at: usize) -> D::T {
+    fn get(&self, at: usize) -> D::Item {
         let mut n = at;
         let st = self.v.len();
         loop {
