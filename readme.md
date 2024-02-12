@@ -3,11 +3,9 @@
 A library for specifying a big combinatorial space and then iterating over them in random order, without ever hitting the same state twice, and *without* having to generate and hold the entire state-space in memory. That is a special feat, and we acheive it by, essentially, conceiving the state-space as an irregular base number system (*which allows methodically iterating through it, generating each possible state, one after the other*), then shuffling the order of the iteration using a ~~symmetric cipher~~ linear feedback shift register.
 
 ```rust
-fn compound_lfsr_shuffle() {
-    let d = LFSRShuffle::new(CompoundDerangement(AtomicDeranger(3), AtomicDeranger(2)));
-    for (a, b) in d.iter() {
-        println!("{:?}", (a,b));
-    }
+let d = LFSRShuffle::new(Cross(0..3, 0..2));
+for i in 0..d.len() {
+    println!("{:?}", d.get(i));
 }
 ```
 ```
@@ -25,7 +23,7 @@ Basic functionality works, but the library is unfinished for many reasons:
 
     - If the state-space is so large, why do you need to take special steps to guarantee non-collision? (We already assume noncollision for 128 bit hash IDs)
     
-    - If you really need an absolute guarantee (rather than a probabilistic guarantee) for whatever metaphysical reasons you have, why not just keep a record of the items you've generated so far and skip the ones that have come up before? It's not credible that this list would grow too long to store even in distributed storage.
+    - If you really need an absolute guarantee (rather than a probabilistic guarantee) for whatever metaphysical reasons you have, why not just keep a record of the items you've generated so far and skip the ones that have come up before?
     
     - This wouldn't work for continuous spaces and so I don't think it can work for weighted sampling, which is basically all of the kinds of procgen or sampling that you'd want to do. We live in an analog world (*or at least we live on a complexity level where we can't make sense of the world without modelling it as analog*)
 
