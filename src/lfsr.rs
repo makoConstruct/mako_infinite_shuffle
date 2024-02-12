@@ -6,6 +6,7 @@ pub struct LFSRF {
 }
 
 /// a RNG that uses the Linear Feedback Shift Register generation method, which we use for getting compact randomish permutations over naturals under some power of two (and then non-powers of two by repeadly discarding outputs that are out of range), but you can use it for whatever you want.
+#[derive(Clone, Copy)]
 pub struct LFSR {
     pub lfsrf: LFSRF,
     pub state: u32,

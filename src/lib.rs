@@ -22,7 +22,7 @@ pub trait Derangement {
         DerangementMap { v: self, f }
     }
 }
-
+#[derive(Clone)]
 pub struct DerangementMap<'a, D: ?Sized, F> {
     v: &'a D,
     f: F,
@@ -40,7 +40,7 @@ where
         (self.f)(self.v.get(at))
     }
 }
-
+#[derive(Clone)]
 pub struct DerangementIter<'a, D: ?Sized> {
     v: &'a D,
     at: usize,
@@ -71,7 +71,7 @@ where
     }
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub struct CompoundDerangement<A, B>(pub A, pub B);
 impl<A, B, TA, TB> Derangement for CompoundDerangement<A, B>
 where
@@ -89,6 +89,8 @@ where
         (self.0.get(q), self.1.get(r))
     }
 }
+
+#[derive(Clone, Copy)]
 pub struct AtomicDeranger(pub usize);
 impl Derangement for AtomicDeranger {
     type Item = usize;
@@ -99,6 +101,8 @@ impl Derangement for AtomicDeranger {
         at
     }
 }
+
+#[derive(Clone)]
 pub struct ConjunctiveDeranger<A, B>(A, B);
 impl<A, B, TA, TB> Derangement for ConjunctiveDeranger<A, B>
 where
@@ -119,6 +123,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct LFSRShuffle<D> {
     v: D,
     r: LFSRF,
