@@ -1,35 +1,35 @@
 // use cloudproof_fpe::core::Integer;
 // use crypto_secretbox::{Key, KeyInit, XSalsa20Poly1305};
 
-use std::hash::Hash;
+use std::{hash::Hash, ops::Range};
 
 pub mod lfsr;
 use lfsr::LFSRF;
 
 pub trait Memorable: Hash + Eq {}
 
-pub trait Derangement {
+pub trait Indexing {
     type Item;
     fn len(&self) -> usize;
     fn get(&self, at: usize) -> Self::Item;
-    fn iter<'a>(&'a self) -> DerangementIter<'a, Self> {
-        DerangementIter::new(self)
+    fn iter<'a>(&'a self) -> IndenxingIter<'a, Self> {
+        IndenxingIter::new(self)
     }
-    fn map<'a, F, Y>(&'a self, f: F) -> DerangementMap<'a, Self, F>
+    fn map<'a, F, Y>(&'a self, f: F) -> IndexingMap<'a, Self, F>
     where
         F: Fn(Self::Item) -> Y,
     {
-        DerangementMap { v: self, f }
+        IndexingMap { v: self, f }
     }
 }
 #[derive(Clone)]
-pub struct DerangementMap<'a, D: ?Sized, F> {
+pub struct IndexingMap<'a, D: ?Sized, F> {
     v: &'a D,
     f: F,
 }
-impl<'a, D: ?Sized, F, R> Derangement for DerangementMap<'a, D, F>
+impl<'a, D: ?Sized, F, R> Indexing for IndexingMap<'a, D, F>
 where
-    D: Derangement,
+    D: Indexing,
     F: Fn(D::Item) -> R,
 {
     type Item = R;
@@ -41,23 +41,23 @@ where
     }
 }
 #[derive(Clone)]
-pub struct DerangementIter<'a, D: ?Sized> {
+pub struct IndenxingIter<'a, D: ?Sized> {
     v: &'a D,
     at: usize,
     len: usize,
 }
-impl<'a, D: ?Sized> DerangementIter<'a, D> {
+impl<'a, D: ?Sized> IndenxingIter<'a, D> {
     pub fn new(v: &'a D) -> Self
     where
-        D: Derangement,
+        D: Indexing,
     {
         let len = v.len();
         Self { v, at: 0, len }
     }
 }
-impl<'a, D> Iterator for DerangementIter<'a, D>
+impl<'a, D> Iterator for IndenxingIter<'a, D>
 where
-    D: Derangement,
+    D: Indexing,
 {
     type Item = D::Item;
     fn next(&mut self) -> Option<Self::Item> {
@@ -72,11 +72,11 @@ where
 }
 
 #[derive(Hash, PartialEq, Eq, Clone)]
-pub struct CompoundDerangement<A, B>(pub A, pub B);
-impl<A, B, TA, TB> Derangement for CompoundDerangement<A, B>
+pub struct Cross<A, B>(pub A, pub B);
+impl<A, B, TA, TB> Indexing for Cross<A, B>
 where
-    A: Derangement<Item = TA>,
-    B: Derangement<Item = TB>,
+    A: Indexing<Item = TA>,
+    B: Indexing<Item = TB>,
 {
     type Item = (TA, TB);
     fn len(&self) -> usize {
@@ -90,24 +90,23 @@ where
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct AtomicDeranger(pub usize);
-impl Derangement for AtomicDeranger {
+impl Indexing for Range<usize> {
     type Item = usize;
     fn len(&self) -> usize {
-        self.0
+        std::iter::ExactSizeIterator::len(self)
     }
-    fn get(&self, at: usize) -> usize {
-        at
+    fn get(&self, at: usize) -> Self::Item {
+        self.start + at
     }
 }
 
+/// does all of A, then does B
 #[derive(Clone)]
-pub struct ConjunctiveDeranger<A, B>(A, B);
-impl<A, B, TA, TB> Derangement for ConjunctiveDeranger<A, B>
+pub struct Series<A, B>(A, B);
+impl<A, B, TA, TB> Indexing for Series<A, B>
 where
-    A: Derangement<Item = TA>,
-    B: Derangement<Item = TB>,
+    A: Indexing<Item = TA>,
+    B: Indexing<Item = TB>,
 {
     type Item = Result<TA, TB>;
     fn len(&self) -> usize {
@@ -131,7 +130,7 @@ pub struct LFSRShuffle<D> {
 impl<D> LFSRShuffle<D> {
     pub fn new(v: D) -> LFSRShuffle<D>
     where
-        D: Derangement,
+        D: Indexing,
     {
         let n = (v.len() + 1).next_power_of_two().ilog2();
         Self {
@@ -140,9 +139,9 @@ impl<D> LFSRShuffle<D> {
         }
     }
 }
-impl<D> Derangement for LFSRShuffle<D>
+impl<D> Indexing for LFSRShuffle<D>
 where
-    D: Derangement,
+    D: Indexing,
 {
     type Item = D::Item;
     fn len(&self) -> usize {
@@ -216,7 +215,7 @@ mod tests {
     fn compound_lfsr() {
         let an = 8;
         let bn = 7;
-        let d = LFSRShuffle::new(CompoundDerangement(AtomicDeranger(an), AtomicDeranger(bn)));
+        let d = LFSRShuffle::new(Cross(0..an, 0..bn));
         let sn = d.len();
         let mut i = 0;
         let mut hs = std::collections::HashSet::new();
@@ -235,7 +234,7 @@ mod tests {
 
     #[test]
     fn map() {
-        let v:Vec<String> = CompoundDerangement(AtomicDeranger(2),AtomicDeranger(2)).map(|(a,b)| format!("{a}{b}")).iter().collect();
+        let v:Vec<String> = Cross(0..2,0..2).map(|(a,b)| format!("{a}{b}")).iter().collect();
         assert_eq!(&v, &["00", "01", "10", "11"]);
     }
 
