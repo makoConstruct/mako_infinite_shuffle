@@ -2,7 +2,7 @@
 name = "mako_infinite_shuffle"
 description = "Iterates over combinatorial spaces in a random order"
 author = "mako yass"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 

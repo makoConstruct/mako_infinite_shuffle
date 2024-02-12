@@ -15,7 +15,32 @@ pub trait Derangement {
     fn iter<'a>(&'a self) -> DerangementIter<'a, Self> {
         DerangementIter::new(self)
     }
+    fn map<'a, F, Y>(&'a self, f: F) -> DerangementMap<'a, Self, F>
+    where
+        F: Fn(Self::T) -> Y,
+    {
+        DerangementMap { v: self, f }
+    }
 }
+
+pub struct DerangementMap<'a, D: ?Sized, F> {
+    v: &'a D,
+    f: F,
+}
+impl<'a, D: ?Sized, F, R> Derangement for DerangementMap<'a, D, F>
+where
+    D: Derangement,
+    F: Fn(D::T) -> R,
+{
+    type T = R;
+    fn len(&self) -> usize {
+        self.v.len()
+    }
+    fn get(&self, at: usize) -> Self::T {
+        (self.f)(self.v.get(at))
+    }
+}
+
 pub struct DerangementIter<'a, D: ?Sized> {
     v: &'a D,
     at: usize,
@@ -201,6 +226,12 @@ mod tests {
             i += 1;
         }
         assert_eq!(i, sn);
+    }
+
+    #[test]
+    fn map() {
+        let v:Vec<String> = CompoundDerangement(AtomicDeranger(2),AtomicDeranger(2)).map(|(a,b)| format!("{a}{b}")).iter().collect();
+        assert_eq!(&v, &["00", "01", "10", "11"]);
     }
 
     #[test]
