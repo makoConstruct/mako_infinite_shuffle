@@ -74,6 +74,20 @@ where
     }
 }
 
+#[derive(Clone)]
+struct Once<T>(T);
+impl<T> Indexing for Once<T> where T:Clone {
+    type Item = T;
+
+    fn len(&self) -> usize {
+        1
+    }
+
+    fn get(&self, at: usize) -> Self::Item {
+        self.0.clone()
+    }
+}
+
 /// Yeilds the pairing of each element in A with every element in B
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub struct Cross<A, B>(pub A, pub B);
@@ -166,7 +180,7 @@ impl Indexing for KSubmultisets {
     fn get(&self, at: usize) -> Self::Item {
         let mut r = number_encoding::combinadics::decode(at, self.k);
         for (i, v) in r.iter_mut().enumerate() {
-            *v += self.k - 1 - i
+            *v -= i
         }
         r
     }
@@ -334,10 +348,72 @@ mod tests {
     }
     
     #[test]
+    fn ksubsetsmulti_format() {
+        let k = KSubmultisets::new(2, 3);
+        use std::collections::HashSet;
+        let mut ac = HashSet::new();
+        for e in k.iter() {
+            if ac.contains(&e) {
+                panic!("duplicate {:?}", &e);
+            }
+            ac.insert(e);
+        }
+        let mut cc = HashSet::new();
+        cc.insert(vec![0,1,1]);
+        cc.insert(vec![0,0,1]);
+        cc.insert(vec![0,0,0]);
+        cc.insert(vec![1,1,1]);
+        assert_eq!(&ac, &cc);
+    }
+    #[test]
+    fn ksubsetsmulti_format_more() {
+        let k = KSubmultisets::new(4, 2);
+        use std::collections::HashSet;
+        let mut ac = HashSet::new();
+        for e in k.iter() {
+            if ac.contains(&e) {
+                panic!("duplicate {:?}", &e);
+            }
+            ac.insert(e);
+        }
+        let mut cc = HashSet::new();
+        cc.insert(vec![0,0]);
+        cc.insert(vec![0,1]);
+        cc.insert(vec![1,1]);
+        cc.insert(vec![0,2]);
+        cc.insert(vec![1,2]);
+        cc.insert(vec![2,2]);
+        cc.insert(vec![0,3]);
+        cc.insert(vec![1,3]);
+        cc.insert(vec![2,3]);
+        cc.insert(vec![3,3]);
+        assert_eq!(&ac, &cc);
+    }
+    
+    #[test]
+    fn ksubsets_format() {
+        let k = KSubsets::new(3, 2);
+        use std::collections::HashSet;
+        let mut ac = HashSet::new();
+        for e in k.iter() {
+            if ac.contains(&e) {
+                panic!("duplicate {:?}", &e);
+            }
+            ac.insert(e);
+        }
+        let mut cc = HashSet::new();
+        cc.insert(vec![0,1]);
+        cc.insert(vec![0,2]);
+        cc.insert(vec![1,2]);
+        assert_eq!(&ac, &cc);
+    }
+    
+    #[test]
     fn ksubsets() {
         let k = KSubsets::new(4, 2);
         assert_eq!(k.len(), 6);
         let ac:std::collections::HashSet<_> = k.iter().collect();
         assert_eq!(ac.len(), 6);
     }
+    
 }
