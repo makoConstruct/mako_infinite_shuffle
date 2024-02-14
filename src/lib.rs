@@ -75,7 +75,7 @@ where
 }
 
 #[derive(Clone)]
-struct Once<T>(T);
+pub struct Once<T>(pub T);
 impl<T> Indexing for Once<T> where T:Clone {
     type Item = T;
 
@@ -83,7 +83,7 @@ impl<T> Indexing for Once<T> where T:Clone {
         1
     }
 
-    fn get(&self, at: usize) -> Self::Item {
+    fn get(&self, _at: usize) -> Self::Item {
         self.0.clone()
     }
 }
