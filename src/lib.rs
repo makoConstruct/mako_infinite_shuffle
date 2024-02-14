@@ -1,10 +1,12 @@
-// use cloudproof_fpe::core::Integer;
-// use crypto_secretbox::{Key, KeyInit, XSalsa20Poly1305};
+#![feature(isqrt)]
 
 use std::{hash::Hash, ops::Range};
 
 pub mod lfsr;
 use lfsr::LFSRF;
+
+/// if you like shuffling combinatorial objects, you may also like this combinatorial object library, I sure do
+pub use number_encoding;
 
 pub trait Memorable: Hash + Eq {}
 
@@ -15,19 +17,20 @@ pub trait Indexing {
     fn iter<'a>(&'a self) -> IndenxingIter<'a, Self> {
         IndenxingIter::new(self)
     }
-    fn map<'a, F, Y>(&'a self, f: F) -> IndexingMap<'a, Self, F>
+    fn map<F, Y>(self, f: F) -> IndexingMap<Self, F>
     where
         F: Fn(Self::Item) -> Y,
+        Self: Sized,
     {
         IndexingMap { v: self, f }
     }
 }
 #[derive(Clone)]
-pub struct IndexingMap<'a, D: ?Sized, F> {
-    v: &'a D,
+pub struct IndexingMap<D, F> {
+    v: D,
     f: F,
 }
-impl<'a, D: ?Sized, F, R> Indexing for IndexingMap<'a, D, F>
+impl<D, F, R> Indexing for IndexingMap<D, F>
 where
     D: Indexing,
     F: Fn(D::Item) -> R,
@@ -71,6 +74,7 @@ where
     }
 }
 
+/// Yeilds the pairing of each element in A with every element in B
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub struct Cross<A, B>(pub A, pub B);
 impl<A, B, TA, TB> Indexing for Cross<A, B>
@@ -122,6 +126,53 @@ where
     }
 }
 
+/// Iterates k-sized subsets of the n-sized input set
+#[derive(Clone)]
+pub struct KSubsets {
+    n: usize,
+    k: usize,
+}
+impl KSubsets {
+    pub fn new(n: usize, k: usize) -> Self {
+        Self { n, k }
+    }
+}
+impl Indexing for KSubsets {
+    type Item = Vec<usize>;
+    fn len(&self) -> usize {
+        number_encoding::combination(self.n, self.k)
+    }
+    fn get(&self, at: usize) -> Self::Item {
+        number_encoding::combinadics::decode(at, self.k)
+    }
+}
+
+/// Iterates k-sized multiset (where entries are allowed to repeat) subsets of the n-sized input set
+#[derive(Clone)]
+pub struct KSubmultisets {
+    n: usize,
+    k: usize,
+}
+impl KSubmultisets {
+    pub fn new(n: usize, k: usize) -> Self {
+        Self { n, k }
+    }
+}
+impl Indexing for KSubmultisets {
+    type Item = Vec<usize>;
+    fn len(&self) -> usize {
+        number_encoding::combination(self.n + self.k - 1, self.k)
+    }
+    fn get(&self, at: usize) -> Self::Item {
+        let mut r = number_encoding::combinadics::decode(at, self.k);
+        for (i, v) in r.iter_mut().enumerate() {
+            *v += self.k - 1 - i
+        }
+        r
+    }
+}
+
+/// psuedorandomly permutes the given Indexing
 #[derive(Clone)]
 pub struct LFSRShuffle<D> {
     v: D,
@@ -160,53 +211,25 @@ where
     }
 }
 
-// pub struct CloudproofShuffle<D> {
-//     v: D,
-//     key: [u8; 32],
-// }
-// impl<D> CloudproofShuffle<D> {
-//     pub fn from_seed(v: D, seed: u64) -> Self {
-//         use rand::{Rng, SeedableRng};
-//         Self {
-//             v,
-//             key: rand::rngs::StdRng::seed_from_u64(seed).gen(),
-//         }
-//         // let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
-//         // let key: [u8;32] = rng.gen();
-//         // let cipher = FF1::<Aes256>::new(&key, 2).unwrap();
-//         // let nonce = XSalsa20Poly1305::generate_nonce(&mut OsRng); // supposedly, in normal use of a symmetric cypher, this would be unique per message
-//         // Self { v, cipher }
-//     }
-// }
-// impl<T, D> Derangement<T> for CloudproofShuffle<D>
-// where
-//     D: Derangement<T>,
-// {
-//     fn total(&self) -> usize {
-//         self.v.total()
-//     }
-
-//     fn draw(&self, at: usize) -> T {
-//         let total = self.total() as u64;
-//         let l = total.ilog2() + 1;
-//         println!("{total}, {l}");
-//         let mut rat = at as u64;
-//         //wait, this wont ever break, it's (apparently) sampling from the range 0..2^(8*24), but you need it to be sampling from the range of like, 2^8, or whatever the nearest power of 2 is to self.total().
-//         loop {
-//             rat = Integer::instantiate(2, l as usize)
-//                 .unwrap()
-//                 .encrypt(&self.key, &[], rat)
-//                 .unwrap();
-//             // println!("{}", rat);
-//             if rat < total {
-//                 break;
-//             }
-//         }
-//         self.v.draw(rat as usize)
-//     }
-// }
-
 //todo: also lcgshuffle (very fast, better statistical properties than lfsr), symmetric cipher shuffle (slow but cryptographically random), pcrng shuffle (better statistical properties than either of the other fast ones)
+
+// deprecating, use an equivalent number_encoding function instead if you need this. I think this is like choose(n, 2) or something.
+// fn triangle_1th(n: usize) -> (usize, usize) {
+//     //digit, remainder
+//     // numeral = n*(n+1)/2 →
+//     // n^2/2 + n/2 - numeral = 0 →
+//     // (quadratic formula) n = (-1/2 +- sqrt((1/2)^2 + 4*(1/2)*numeral))/(2*1/2) →
+//     // (quadratic formula) n = -1/2 +- sqrt(1/4 + 2*numeral) →
+//     // n = -1/2 +- sqrt((1 + 8*numeral)/4) →
+//     // n = -1/2 +- sqrt(1 + 8*numeral)/2 →
+//     // n = (-1 +- sqrt(1 + 8*numeral))/2 →
+//     // (it's not negative) n = (sqrt(1 + 8*numeral) - 1)/2 →
+//     // n =
+//     let primary = ((1 + 8 * n).isqrt() - 1) / 2;
+//     (primary, n - primary * (primary + 1) / 2)
+//     // I'm pretty sure the above proof is woo because we're dealing with integers but it still fucking worked out perfectly????
+//     //todo: remainder
+// }
 
 #[cfg(test)]
 mod tests {
@@ -234,7 +257,10 @@ mod tests {
 
     #[test]
     fn map() {
-        let v:Vec<String> = Cross(0..2,0..2).map(|(a,b)| format!("{a}{b}")).iter().collect();
+        let v: Vec<String> = Cross(0..2, 0..2)
+            .map(|(a, b)| format!("{a}{b}"))
+            .iter()
+            .collect();
         assert_eq!(&v, &["00", "01", "10", "11"]);
     }
 
@@ -267,5 +293,51 @@ mod tests {
         {
             panic!("oh no, we don't understand");
         }
+    }
+    // deprecating
+    // #[test]
+    // fn triangle_second_numeral() {
+    //     const expected: &'static [(usize, usize)] = &[
+    //         (0, 0),
+    //         (1, 0),
+    //         (1, 1),
+    //         (2, 0),
+    //         (2, 1),
+    //         (2, 2),
+    //         (3, 0),
+    //         (3, 1),
+    //         (3, 2),
+    //         (3, 3),
+    //         (4, 0),
+    //         (4, 1),
+    //         (4, 2),
+    //         (4, 3),
+    //         (4, 4),
+    //         (5, 0),
+    //         (5, 1),
+    //         (5, 2),
+    //         (5, 3),
+    //         (5, 4),
+    //         (5, 5),
+    //     ];
+    //     for i in 1..expected.len() {
+    //         assert_eq!(triangle_1th(i), expected[i]);
+    //     }
+    // }
+    
+    #[test]
+    fn ksubsetsmulti() {
+        let k = KSubmultisets::new(2, 3);
+        assert_eq!(k.len(), 4);
+        let ac:std::collections::HashSet<_> = k.iter().collect();
+        assert_eq!(ac.len(), 4);
+    }
+    
+    #[test]
+    fn ksubsets() {
+        let k = KSubsets::new(4, 2);
+        assert_eq!(k.len(), 6);
+        let ac:std::collections::HashSet<_> = k.iter().collect();
+        assert_eq!(ac.len(), 6);
     }
 }

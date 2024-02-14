@@ -1,6 +1,8 @@
 # infinite shuffle
 
-A library for specifying a big combinatorial space and then iterating over them in random order, without ever hitting the same state twice, and *without* having to generate and hold the entire state-space in memory. That is a special feat, and we acheive it by, essentially, conceiving the state-space as an irregular base number system (*which allows methodically iterating through it, generating each possible state, one after the other*), then shuffling the order of the iteration using a ~~symmetric cipher~~ linear feedback shift register.
+A library for combinatorics.
+
+A big feature is the ability to specify a big combinatorial space and then iterating over it in random order, without ever hitting the same state twice, and *without* having to generate and hold the entire state-space in memory. We acheive it by, essentially, conceiving the state-space as an irregular base number system (*which allows methodically iterating through it, generating each possible state, one after the other*), then shuffling the order of the iteration using a ~~symmetric cipher~~ linear feedback shift register.
 
 ```rust
 let d = LFSRShuffle::new(Cross(0..3, 0..2));
