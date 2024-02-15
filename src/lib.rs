@@ -1,6 +1,6 @@
 #![feature(isqrt)]
 
-use std::{hash::Hash, ops::Range};
+use std::{borrow::Borrow, hash::Hash, marker::PhantomData, ops::Range};
 
 pub mod lfsr;
 use lfsr::LFSRF;
@@ -57,13 +57,15 @@ where
 }
 
 #[derive(Clone)]
-pub struct IndexingIter<D> {
-    v: D,
-    at: usize,
-    len: usize,
+pub struct IndexingIter<D, I:?Sized> {
+    pub v: D,
+    pub at: usize,
+    pub len: usize,
+    pub _i: PhantomData<I>,
 }
-impl<'a, I> Iterator for IndexingIter<&'a I>
+impl<'a, DI, I> Iterator for IndexingIter<DI, I>
 where
+    DI: Borrow<I>,
     I: ?Sized + Indexing,
 {
     type Item = I::Item;
@@ -71,27 +73,45 @@ where
         if self.at >= self.len {
             None
         } else {
-            let r = Some(self.v.get(self.at));
+            let r = Some(self.v.borrow().get(self.at));
             self.at += 1;
             r
         }
     }
 }
+/// I straight up don't know how to abstract over different kinds of references dynamic or not. It may not be possible. I'll just make everything public so that you can do what you need to.
+pub fn dyn_iter<I:Indexing+?Sized>(v:Box<I>)-> IndexingIter<Box<I>, I> {
+    let len = <Box<I> as Borrow<I>>::borrow(&v).len();
+    IndexingIter { v, at:0, len, _i:PhantomData }
+}
 
+
+/// separated from the above because these are not object-safe
 pub trait OpsRef {
-    fn iter<'a>(&'a self) -> IndexingIter<&'a Self>;
+    fn iter<'a>(&'a self) -> IndexingIter<&'a Self, Self>;
+    fn into_iter(self)-> IndexingIter<Self, Self> where Self:Sized;
     fn map<'a, F, R>(&'a self, f: F) -> IndexingMap<&'a Self, F> where Self:Indexing, F:Fn(Self::Item)-> R;
 }
 impl<I> OpsRef for I
 where
     I: Indexing + ?Sized,
 {
-    fn iter<'a>(&'a self) -> IndexingIter<&'a Self> {
+    fn iter<'a>(&'a self) -> IndexingIter<&'a Self, Self> {
         let len = self.len();
         IndexingIter {
             v: self,
             len,
             at: 0,
+            _i:PhantomData
+        }
+    }
+    fn into_iter(self) -> IndexingIter<Self, Self> where Self:Sized {
+        let len = self.len();
+        IndexingIter {
+            v: self,
+            len,
+            at: 0,
+            _i:PhantomData
         }
     }
     fn map<'a, F, R>(&'a self, f: F) -> IndexingMap<&'a Self, F> where Self:Indexing
@@ -100,11 +120,11 @@ where
     }
 }
 
-/// this has to be a function because trait objects can't return self types
-pub fn iter<'a, I: Indexing + ?Sized>(v: &'a I) -> IndexingIter<&'a I> {
-    let len = v.len();
-    IndexingIter { v, at: 0, len }
-}
+// /// this has to be a function because trait objects can't return self types
+// pub fn iter<'a, I: Indexing + ?Sized>(v: &'a I) -> IndexingIter<&'a I> {
+//     let len = v.len();
+//     IndexingIter { v, at: 0, len }
+// }
 
 #[derive(Clone)]
 pub struct Once<T>(pub T);
@@ -291,7 +311,7 @@ mod tests {
         let sn = d.len();
         let mut i = 0;
         let mut hs = std::collections::HashSet::new();
-        for (a, b) in iter(&d) {
+        for (a, b) in d.iter() {
             assert!(a < an);
             assert!(b < bn);
             assert!(i < sn);
@@ -447,7 +467,7 @@ mod tests {
     fn ksubsets() {
         let k = KSubsets::new(4, 2);
         assert_eq!(k.len(), 6);
-        let ac: std::collections::HashSet<_> = iter(&k).collect();
+        let ac: std::collections::HashSet<_> = k.iter().collect();
         assert_eq!(ac.len(), 6);
     }
 
@@ -457,5 +477,6 @@ mod tests {
         o.get(0);
         for _e in o.iter() {
         }
+        dyn_iter(o);
     }
 }
