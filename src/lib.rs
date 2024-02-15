@@ -14,26 +14,38 @@ pub trait Indexing {
     type Item;
     fn len(&self) -> usize;
     fn get(&self, at: usize) -> Self::Item;
-    fn iter<'a>(&'a self) -> IndenxingIter<'a, Self> {
-        IndenxingIter::new(self)
-    }
-    fn map<F, Y>(self, f: F) -> IndexingMap<Self, F>
-    where
-        F: Fn(Self::Item) -> Y,
-        Self: Sized,
-    {
-        IndexingMap { v: self, f }
-    }
 }
+// pub trait IndexingRef {
+//     fn iter<'a, I>(self) -> IndexingIter<Self, I> where Self:Borrow<I> + Sized, I:Indexing;
+//     // fn map<F, D, Y>(self, f: F) -> IndexingMap<D, F>
+//     // where
+//     //     D: Indexing,
+//     //     F: Fn(D::Item) -> Y,
+//     //     Self: Sized;
+// }
+// impl<D,I> IndexingRef for D where D:Borrow<I>, I:Indexing {
+//     fn iter<'a>(self) -> IndexingIter<Self, I> where Self:Borrow<I> + Sized, I:Indexing {
+//         let len = self.borrow().len();
+//         IndexingIter {
+//             v: self,
+//             at: 0,
+//             len,
+//             _p: PhantomData(),
+//         }
+//     }
+// }
+
+// impl<I> IndexingExtend for Borrow<I> where I:Indexing {}
+
 #[derive(Clone)]
-pub struct IndexingMap<D, F> {
-    v: D,
+pub struct IndexingMap<I, F> {
+    v: I,
     f: F,
 }
-impl<D, F, R> Indexing for IndexingMap<D, F>
+impl<'a, I, F, R> Indexing for IndexingMap<&'a I, F>
 where
-    D: Indexing,
-    F: Fn(D::Item) -> R,
+    I: Indexing,
+    F: Fn(I::Item) -> R,
 {
     type Item = R;
     fn len(&self) -> usize {
@@ -43,26 +55,18 @@ where
         (self.f)(self.v.get(at))
     }
 }
+
 #[derive(Clone)]
-pub struct IndenxingIter<'a, D: ?Sized> {
-    v: &'a D,
+pub struct IndexingIter<D> {
+    v: D,
     at: usize,
     len: usize,
 }
-impl<'a, D: ?Sized> IndenxingIter<'a, D> {
-    pub fn new(v: &'a D) -> Self
-    where
-        D: Indexing,
-    {
-        let len = v.len();
-        Self { v, at: 0, len }
-    }
-}
-impl<'a, D> Iterator for IndenxingIter<'a, D>
+impl<'a, I> Iterator for IndexingIter<&'a I>
 where
-    D: Indexing,
+    I: ?Sized + Indexing,
 {
-    type Item = D::Item;
+    type Item = I::Item;
     fn next(&mut self) -> Option<Self::Item> {
         if self.at >= self.len {
             None
@@ -74,9 +78,40 @@ where
     }
 }
 
+pub trait OpsRef {
+    fn iter<'a>(&'a self) -> IndexingIter<&'a Self>;
+    fn map<'a, F, R>(&'a self, f: F) -> IndexingMap<&'a Self, F> where Self:Indexing, F:Fn(Self::Item)-> R;
+}
+impl<I> OpsRef for I
+where
+    I: Indexing + ?Sized,
+{
+    fn iter<'a>(&'a self) -> IndexingIter<&'a Self> {
+        let len = self.len();
+        IndexingIter {
+            v: self,
+            len,
+            at: 0,
+        }
+    }
+    fn map<'a, F, R>(&'a self, f: F) -> IndexingMap<&'a Self, F> where Self:Indexing
+    {
+        IndexingMap{v:self, f}
+    }
+}
+
+/// this has to be a function because trait objects can't return self types
+pub fn iter<'a, I: Indexing + ?Sized>(v: &'a I) -> IndexingIter<&'a I> {
+    let len = v.len();
+    IndexingIter { v, at: 0, len }
+}
+
 #[derive(Clone)]
 pub struct Once<T>(pub T);
-impl<T> Indexing for Once<T> where T:Clone {
+impl<T> Indexing for Once<T>
+where
+    T: Clone,
+{
     type Item = T;
 
     fn len(&self) -> usize {
@@ -256,7 +291,7 @@ mod tests {
         let sn = d.len();
         let mut i = 0;
         let mut hs = std::collections::HashSet::new();
-        for (a, b) in d.iter() {
+        for (a, b) in iter(&d) {
             assert!(a < an);
             assert!(b < bn);
             assert!(i < sn);
@@ -338,15 +373,15 @@ mod tests {
     //         assert_eq!(triangle_1th(i), expected[i]);
     //     }
     // }
-    
+
     #[test]
     fn ksubsetsmulti() {
         let k = KSubmultisets::new(2, 3);
         assert_eq!(k.len(), 4);
-        let ac:std::collections::HashSet<_> = k.iter().collect();
+        let ac: std::collections::HashSet<_> = k.iter().collect();
         assert_eq!(ac.len(), 4);
     }
-    
+
     #[test]
     fn ksubsetsmulti_format() {
         let k = KSubmultisets::new(2, 3);
@@ -359,10 +394,10 @@ mod tests {
             ac.insert(e);
         }
         let mut cc = HashSet::new();
-        cc.insert(vec![0,1,1]);
-        cc.insert(vec![0,0,1]);
-        cc.insert(vec![0,0,0]);
-        cc.insert(vec![1,1,1]);
+        cc.insert(vec![0, 1, 1]);
+        cc.insert(vec![0, 0, 1]);
+        cc.insert(vec![0, 0, 0]);
+        cc.insert(vec![1, 1, 1]);
         assert_eq!(&ac, &cc);
     }
     #[test]
@@ -377,19 +412,19 @@ mod tests {
             ac.insert(e);
         }
         let mut cc = HashSet::new();
-        cc.insert(vec![0,0]);
-        cc.insert(vec![0,1]);
-        cc.insert(vec![1,1]);
-        cc.insert(vec![0,2]);
-        cc.insert(vec![1,2]);
-        cc.insert(vec![2,2]);
-        cc.insert(vec![0,3]);
-        cc.insert(vec![1,3]);
-        cc.insert(vec![2,3]);
-        cc.insert(vec![3,3]);
+        cc.insert(vec![0, 0]);
+        cc.insert(vec![0, 1]);
+        cc.insert(vec![1, 1]);
+        cc.insert(vec![0, 2]);
+        cc.insert(vec![1, 2]);
+        cc.insert(vec![2, 2]);
+        cc.insert(vec![0, 3]);
+        cc.insert(vec![1, 3]);
+        cc.insert(vec![2, 3]);
+        cc.insert(vec![3, 3]);
         assert_eq!(&ac, &cc);
     }
-    
+
     #[test]
     fn ksubsets_format() {
         let k = KSubsets::new(3, 2);
@@ -402,18 +437,25 @@ mod tests {
             ac.insert(e);
         }
         let mut cc = HashSet::new();
-        cc.insert(vec![0,1]);
-        cc.insert(vec![0,2]);
-        cc.insert(vec![1,2]);
+        cc.insert(vec![0, 1]);
+        cc.insert(vec![0, 2]);
+        cc.insert(vec![1, 2]);
         assert_eq!(&ac, &cc);
     }
-    
+
     #[test]
     fn ksubsets() {
         let k = KSubsets::new(4, 2);
         assert_eq!(k.len(), 6);
-        let ac:std::collections::HashSet<_> = k.iter().collect();
+        let ac: std::collections::HashSet<_> = iter(&k).collect();
         assert_eq!(ac.len(), 6);
     }
-    
+
+    #[test]
+    fn object_safety() {
+        let o: Box<dyn Indexing<Item = usize>> = Box::new(0..3);
+        o.get(0);
+        for _e in o.iter() {
+        }
+    }
 }
