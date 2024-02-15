@@ -14,6 +14,25 @@ pub trait Indexing {
     type Item;
     fn len(&self) -> usize;
     fn get(&self, at: usize) -> Self::Item;
+    fn into_iter(self) -> IndexingIter<Self, Self>
+    where
+        Self: Sized,
+    {
+        let len = self.len();
+        IndexingIter {
+            v: self,
+            len,
+            at: 0,
+            _i: PhantomData,
+        }
+    }
+    fn into_map<F, R>(self, f: F) -> IndexingMap<Self, Self, F>
+    where
+        Self: Sized,
+        F: Fn(Self::Item) -> R
+    {
+        IndexingMap { v: self, f, _i:PhantomData }
+    }
 }
 // pub trait IndexingRef {
 //     fn iter<'a, I>(self) -> IndexingIter<Self, I> where Self:Borrow<I> + Sized, I:Indexing;
@@ -38,26 +57,28 @@ pub trait Indexing {
 // impl<I> IndexingExtend for Borrow<I> where I:Indexing {}
 
 #[derive(Clone)]
-pub struct IndexingMap<I, F> {
-    v: I,
+pub struct IndexingMap<DI, I:?Sized, F> {
+    v: DI,
     f: F,
+    _i: PhantomData<I>,
 }
-impl<'a, I, F, R> Indexing for IndexingMap<&'a I, F>
+impl<DI, I, F, R> Indexing for IndexingMap<DI, I, F>
 where
-    I: Indexing,
+    DI: Borrow<I>,
+    I: Indexing+?Sized,
     F: Fn(I::Item) -> R,
 {
     type Item = R;
     fn len(&self) -> usize {
-        self.v.len()
+        self.v.borrow().len()
     }
     fn get(&self, at: usize) -> Self::Item {
-        (self.f)(self.v.get(at))
+        (self.f)(self.v.borrow().get(at))
     }
 }
 
 #[derive(Clone)]
-pub struct IndexingIter<D, I:?Sized> {
+pub struct IndexingIter<D, I: ?Sized> {
     pub v: D,
     pub at: usize,
     pub len: usize,
@@ -80,17 +101,23 @@ where
     }
 }
 /// I straight up don't know how to abstract over different kinds of references dynamic or not. It may not be possible. I'll just make everything public so that you can do what you need to.
-pub fn dyn_iter<I:Indexing+?Sized>(v:Box<I>)-> IndexingIter<Box<I>, I> {
+pub fn dyn_iter<I: Indexing + ?Sized>(v: Box<I>) -> IndexingIter<Box<I>, I> {
     let len = <Box<I> as Borrow<I>>::borrow(&v).len();
-    IndexingIter { v, at:0, len, _i:PhantomData }
+    IndexingIter {
+        v,
+        at: 0,
+        len,
+        _i: PhantomData,
+    }
 }
-
 
 /// separated from the above because these are not object-safe
 pub trait OpsRef {
     fn iter<'a>(&'a self) -> IndexingIter<&'a Self, Self>;
-    fn into_iter(self)-> IndexingIter<Self, Self> where Self:Sized;
-    fn map<'a, F, R>(&'a self, f: F) -> IndexingMap<&'a Self, F> where Self:Indexing, F:Fn(Self::Item)-> R;
+    fn map<'a, F, R>(&'a self, f: F) -> IndexingMap<&'a Self, Self, F>
+    where
+        Self: Indexing,
+        F: Fn(Self::Item) -> R;
 }
 impl<I> OpsRef for I
 where
@@ -102,21 +129,14 @@ where
             v: self,
             len,
             at: 0,
-            _i:PhantomData
+            _i: PhantomData,
         }
     }
-    fn into_iter(self) -> IndexingIter<Self, Self> where Self:Sized {
-        let len = self.len();
-        IndexingIter {
-            v: self,
-            len,
-            at: 0,
-            _i:PhantomData
-        }
-    }
-    fn map<'a, F, R>(&'a self, f: F) -> IndexingMap<&'a Self, F> where Self:Indexing
+    fn map<'a, F, R>(&'a self, f: F) -> IndexingMap<&'a Self, Self, F>
+    where
+        Self: Indexing,
     {
-        IndexingMap{v:self, f}
+        IndexingMap { v: self, f, _i:PhantomData }
     }
 }
 
@@ -326,11 +346,14 @@ mod tests {
 
     #[test]
     fn map() {
-        let v: Vec<String> = Cross(0..2, 0..2)
+        let c1 = Cross(0..2, 0..2);
+        let c2 = c1.clone();
+        let v: Vec<String> = c1
             .map(|(a, b)| format!("{a}{b}"))
             .iter()
             .collect();
         assert_eq!(&v, &["00", "01", "10", "11"]);
+        let _c2m = c2.into_map(|(a,b):(usize,usize)| a + b);
     }
 
     #[test]
@@ -475,8 +498,7 @@ mod tests {
     fn object_safety() {
         let o: Box<dyn Indexing<Item = usize>> = Box::new(0..3);
         o.get(0);
-        for _e in o.iter() {
-        }
+        for _e in o.iter() {}
         dyn_iter(o);
     }
 }
