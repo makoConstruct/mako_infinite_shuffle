@@ -2,8 +2,8 @@
 
 use std::{borrow::Borrow, hash::Hash, marker::PhantomData, ops::Range};
 
-pub mod lfsr;
-use lfsr::{Shuffler, LFSRF};
+pub mod rng;
+use rng::Shuffler;
 
 /// if you like shuffling combinatorial objects, you may also like this combinatorial object library, I sure do
 pub use number_encoding;
@@ -29,9 +29,13 @@ pub trait Indexing {
     fn into_map<F, R>(self, f: F) -> IndexingMap<Self, Self, F>
     where
         Self: Sized,
-        F: Fn(Self::Item) -> R
+        F: Fn(Self::Item) -> R,
     {
-        IndexingMap { v: self, f, _i:PhantomData }
+        IndexingMap {
+            v: self,
+            f,
+            _i: PhantomData,
+        }
     }
 }
 // pub trait IndexingRef {
@@ -57,7 +61,7 @@ pub trait Indexing {
 // impl<I> IndexingExtend for Borrow<I> where I:Indexing {}
 
 #[derive(Clone)]
-pub struct IndexingMap<DI, I:?Sized, F> {
+pub struct IndexingMap<DI, I: ?Sized, F> {
     v: DI,
     f: F,
     _i: PhantomData<I>,
@@ -65,7 +69,7 @@ pub struct IndexingMap<DI, I:?Sized, F> {
 impl<DI, I, F, R> Indexing for IndexingMap<DI, I, F>
 where
     DI: Borrow<I>,
-    I: Indexing+?Sized,
+    I: Indexing + ?Sized,
     F: Fn(I::Item) -> R,
 {
     type Item = R;
@@ -136,7 +140,11 @@ where
     where
         Self: Indexing,
     {
-        IndexingMap { v: self, f, _i:PhantomData }
+        IndexingMap {
+            v: self,
+            f,
+            _i: PhantomData,
+        }
     }
 }
 
@@ -261,28 +269,29 @@ impl Indexing for KSubmultisets {
     }
 }
 
-
 /// psuedorandomly permutes the given Indexing
 #[derive(Clone)]
-pub struct LFSRShuffle<D> {
+pub struct Shuffled<D, S> {
     v: D,
-    r: LFSRF,
+    r: S,
 }
-impl<D> LFSRShuffle<D> {
-    pub fn new(v: D) -> LFSRShuffle<D>
+impl<D, S> Shuffled<D, S> {
+    pub fn new(v: D) -> Shuffled<D, S>
     where
         D: Indexing,
+        S: Shuffler,
     {
         let length = v.len();
         Self {
             v,
-            r: LFSRF::for_length(length),
+            r: S::for_length(length),
         }
     }
 }
-impl<D> Indexing for LFSRShuffle<D>
+impl<D, S> Indexing for Shuffled<D, S>
 where
     D: Indexing,
+    S: Shuffler
 {
     type Item = D::Item;
     fn len(&self) -> usize {
@@ -305,14 +314,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use self::lfsr::Rng;
+
+    use self::rng::Rng;
+    use std::{cmp::Eq, fmt::Debug, hash::Hash};
+    use rng::{LFSRF, LFSRFNTimes};
 
     use super::*;
     #[test]
     fn compound_lfsr() {
         let an = 8;
         let bn = 7;
-        let d = LFSRShuffle::new(Cross(0..an, 0..bn));
+        let d = Shuffled::<_, LFSRF>::new(Cross(0..an, 0..bn));
         let sn = d.len();
         let mut i = 0;
         let mut hs = std::collections::HashSet::new();
@@ -320,7 +332,7 @@ mod tests {
             assert!(a < an);
             assert!(b < bn);
             assert!(i < sn);
-            println!("{:?}", (a,b));
+            println!("{:?}", (a, b));
             if hs.contains(&(a, b)) {
                 panic!("{:?} was repeated", (a, b));
             }
@@ -334,15 +346,12 @@ mod tests {
     fn map() {
         let c1 = Cross(0..2, 0..2);
         let c2 = c1.clone();
-        let v: Vec<String> = c1
-            .map(|(a, b)| format!("{a}{b}"))
-            .iter()
-            .collect();
+        let v: Vec<String> = c1.map(|(a, b)| format!("{a}{b}")).iter().collect();
         assert_eq!(&v, &["00", "01", "10", "11"]);
-        let _c2m = c2.into_map(|(a,b):(usize,usize)| a + b);
+        let _c2m = c2.into_map(|(a, b): (usize, usize)| a + b);
     }
 
-    fn test_aperiodicity_for_length<S:Shuffler>(length: usize) -> bool {
+    fn test_aperiodicity_for_length<S: Shuffler>(length: usize) -> bool {
         let l = Rng::<S>::for_length(length);
         let mut s = std::collections::HashSet::new();
         //see that it's aperiodic at least until 3 steps away from the end
@@ -358,13 +367,14 @@ mod tests {
         }
         false
     }
-    
+
     #[test]
     fn u8_for_all_shufflers() {
         assert!(!test_aperiodicity_for_length::<LFSRF>(256));
+        assert!(!test_aperiodicity_for_length::<LFSRFNTimes>(256));
         // assert!(!test_aperiodicity_for_length::<Wrapmuller>(256));
     }
-    
+
     #[test]
     fn lfsr() {
         if test_aperiodicity_for_length::<LFSRF>(2)
@@ -461,22 +471,40 @@ mod tests {
         assert_eq!(&ac, &cc);
     }
 
-    #[test]
-    fn ksubsets_format() {
-        let k = KSubsets::new(3, 2);
-        use std::collections::HashSet;
+    use std::collections::HashSet;
+    fn hashset_acc_without_repeat<T: Hash + Eq + Debug>(
+        all: impl Iterator<Item = T>,
+    ) -> HashSet<T> {
         let mut ac = HashSet::new();
-        for e in k.iter() {
+        for e in all {
             if ac.contains(&e) {
                 panic!("duplicate {:?}", &e);
             }
             ac.insert(e);
         }
+        ac
+    }
+    #[test]
+    fn ksubsets_format() {
+        let k = KSubsets::new(3, 2);
+        let ac = hashset_acc_without_repeat(k.iter());
         let mut cc = HashSet::new();
         cc.insert(vec![0, 1]);
         cc.insert(vec![0, 2]);
         cc.insert(vec![1, 2]);
         assert_eq!(&ac, &cc);
+    }
+
+    #[test]
+    fn triples_hit_7() {
+        let rs: HashSet<Vec<usize>> = hashset_acc_without_repeat(
+            Shuffled::<_, LFSRFNTimes>::new(KSubmultisets::new(8, 3))
+                .into_iter()
+                .take(40),
+        );
+        println!("{:?}", &rs);
+        assert!(rs.iter().any(|v| v.iter().any(|e| *e == 7)), "no 7s. the shuffler was insufficiently random.");
+        assert!(rs.iter().any(|v| *v.iter().next().unwrap() == 7), "no 7s. the shuffler was insufficiently random.");
     }
 
     #[test]

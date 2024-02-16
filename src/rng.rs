@@ -61,6 +61,69 @@ impl Shuffler for LFSRF {
     }
 }
 
+/// Just runs LFSRF with multiple iterations per next, which produces much more random output. The default iteration count specified in `for_length` is 11.
+pub struct LFSRFNTimes(pub usize, pub LFSRF);
+impl Shuffler for LFSRFNTimes {
+    fn initial_state(length: usize) -> u64 {
+        LFSRF::initial_state(length)
+    }
+    fn next(&self, prev: u64) -> u64 {
+        let mut cur = prev;
+        for _ in 0..self.0 {
+            cur = self.1.next(cur);
+        }
+        cur
+    }
+    fn for_length(l: usize) -> Self {
+        Self(11, LFSRF::for_length(l))
+    }
+    fn output_to_state(&self, state: u64) -> u64 {
+        self.1.output_to_state(state)
+    }
+    fn state_to_output(&self, state: u64) -> u64 {
+        self.1.state_to_output(state)
+    }
+}
+
+
+// /// (Linear Congruential Generator)
+// #[derive(Clone, Copy)]
+// pub struct LCG {
+//     pub mul: u64,
+//     pub inc: u64,
+//     pub modu: u64,
+// }
+// impl Shuffler for LCG {
+//     fn initial_state(length: usize) -> u64 {
+//         1
+//     }
+//     fn next(&self, prev: u64) -> u64 {
+//         //inspired by https://holzhaus.github.io/vinylla/src/vinylla/lfsr.rs.html#172
+//         (self.mul*prev + self.inc as u64)%self.modu as u64
+//     }
+//     /// for period l. Should return with a period above and close to l, but doesn't have to be l exactly (the point of full period is that we can just try again if we get one that's too long, and if you're close enough to the correct period you have a probabilistic guarantee that you wont have to try too many times).
+//     fn for_length(l: usize) -> Self {
+//         // + 1 because a lfsr actually skips the 0
+//         let bl = (l + 1).ilog2() + 1;
+//         Self {
+//             mul: ,
+//             inc: ,
+//             modu: ,
+//         }
+//     }
+//     fn state_to_output(&self, state: u64) -> u64 {
+//         //a lfsr never generates 0
+//         state - 1
+//     }
+//     fn output_to_state(&self, state: u64) -> u64 {
+//         //a lfsr never generates 0
+//         state + 1
+//     }
+// }
+
+
+
+
 /// a RNG that uses the Linear Feedback Shift Register generation method, which we use for getting compact randomish permutations over naturals under some power of two (and then non-powers of two by repeadly discarding outputs that are out of range), but you can use it for whatever you want.
 #[derive(Clone, Copy)]
 pub struct Rng<Core> {
