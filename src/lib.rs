@@ -3,7 +3,7 @@
 use std::{borrow::Borrow, hash::Hash, marker::PhantomData, ops::Range};
 
 pub mod lfsr;
-use lfsr::LFSRF;
+use lfsr::{Shuffler, LFSRF};
 
 /// if you like shuffling combinatorial objects, you may also like this combinatorial object library, I sure do
 pub use number_encoding;
@@ -261,6 +261,7 @@ impl Indexing for KSubmultisets {
     }
 }
 
+
 /// psuedorandomly permutes the given Indexing
 #[derive(Clone)]
 pub struct LFSRShuffle<D> {
@@ -272,10 +273,10 @@ impl<D> LFSRShuffle<D> {
     where
         D: Indexing,
     {
-        let n = (v.len() + 1).next_power_of_two().ilog2();
+        let length = v.len();
         Self {
             v,
-            r: LFSRF::for_length(n as usize),
+            r: LFSRF::for_length(length),
         }
     }
 }
@@ -288,40 +289,24 @@ where
         self.v.len()
     }
     fn get(&self, at: usize) -> D::Item {
-        let mut n = at;
-        let st = self.v.len();
+        let st = self.v.len() as u64;
+        let mut n = self.r.output_to_state(at as u64);
         loop {
-            n = self.r.next(n as u32) as usize;
-            if n < st {
+            n = self.r.next(n as u64) as u64;
+            if self.r.state_to_output(n) < st {
                 break;
             }
         }
-        self.v.get(n)
+        self.v.get(self.r.state_to_output(n) as usize)
     }
 }
 
 //todo: also lcgshuffle (very fast, better statistical properties than lfsr), symmetric cipher shuffle (slow but cryptographically random), pcrng shuffle (better statistical properties than either of the other fast ones)
 
-// deprecating, use an equivalent number_encoding function instead if you need this. I think this is like choose(n, 2) or something.
-// fn triangle_1th(n: usize) -> (usize, usize) {
-//     //digit, remainder
-//     // numeral = n*(n+1)/2 →
-//     // n^2/2 + n/2 - numeral = 0 →
-//     // (quadratic formula) n = (-1/2 +- sqrt((1/2)^2 + 4*(1/2)*numeral))/(2*1/2) →
-//     // (quadratic formula) n = -1/2 +- sqrt(1/4 + 2*numeral) →
-//     // n = -1/2 +- sqrt((1 + 8*numeral)/4) →
-//     // n = -1/2 +- sqrt(1 + 8*numeral)/2 →
-//     // n = (-1 +- sqrt(1 + 8*numeral))/2 →
-//     // (it's not negative) n = (sqrt(1 + 8*numeral) - 1)/2 →
-//     // n =
-//     let primary = ((1 + 8 * n).isqrt() - 1) / 2;
-//     (primary, n - primary * (primary + 1) / 2)
-//     // I'm pretty sure the above proof is woo because we're dealing with integers but it still fucking worked out perfectly????
-//     //todo: remainder
-// }
-
 #[cfg(test)]
 mod tests {
+    use self::lfsr::Rng;
+
     use super::*;
     #[test]
     fn compound_lfsr() {
@@ -335,6 +320,7 @@ mod tests {
             assert!(a < an);
             assert!(b < bn);
             assert!(i < sn);
+            println!("{:?}", (a,b));
             if hs.contains(&(a, b)) {
                 panic!("{:?} was repeated", (a, b));
             }
@@ -356,32 +342,39 @@ mod tests {
         let _c2m = c2.into_map(|(a,b):(usize,usize)| a + b);
     }
 
+    fn test_aperiodicity_for_length<S:Shuffler>(length: usize) -> bool {
+        let l = Rng::<S>::for_length(length);
+        let mut s = std::collections::HashSet::new();
+        //see that it's aperiodic at least until 3 steps away from the end
+        for (i, e) in l.take(length).enumerate() {
+            if s.contains(&e) {
+                println!(
+                    "{} iterator repeated itself on the {}th iteration",
+                    length, i
+                );
+                return true;
+            }
+            s.insert(e);
+        }
+        false
+    }
+    
+    #[test]
+    fn u8_for_all_shufflers() {
+        assert!(!test_aperiodicity_for_length::<LFSRF>(256));
+        // assert!(!test_aperiodicity_for_length::<Wrapmuller>(256));
+    }
+    
     #[test]
     fn lfsr() {
-        fn test_aperiodicity_for_length(length: usize) -> bool {
-            let l = lfsr::LFSR::for_length(length);
-            let mut s = std::collections::HashSet::new();
-            //see that it's aperiodic at least until 3 steps away from the end
-            for (i, e) in l.take((1 << length) - 3).enumerate() {
-                if s.contains(&e) {
-                    println!(
-                        "{} iterator repeated itself on the {}th iteration",
-                        length, i
-                    );
-                    return true;
-                }
-                s.insert(e);
-            }
-            false
-        }
-        if test_aperiodicity_for_length(2)
-            || test_aperiodicity_for_length(4)
-            || test_aperiodicity_for_length(8)
-            || test_aperiodicity_for_length(9)
-            || test_aperiodicity_for_length(10)
-            || test_aperiodicity_for_length(11)
-            || test_aperiodicity_for_length(12)
-            || test_aperiodicity_for_length(13)
+        if test_aperiodicity_for_length::<LFSRF>(2)
+            || test_aperiodicity_for_length::<LFSRF>(4)
+            || test_aperiodicity_for_length::<LFSRF>(8)
+            || test_aperiodicity_for_length::<LFSRF>(9)
+            || test_aperiodicity_for_length::<LFSRF>(10)
+            || test_aperiodicity_for_length::<LFSRF>(11)
+            || test_aperiodicity_for_length::<LFSRF>(12)
+            || test_aperiodicity_for_length::<LFSRF>(13)
         {
             panic!("oh no, we don't understand");
         }
