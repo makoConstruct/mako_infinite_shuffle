@@ -85,6 +85,7 @@ impl Shuffler for LFSRFNTimes {
     }
 }
 
+pub type DefaultShuffler = LFSRFNTimes;
 
 // /// (Linear Congruential Generator)
 // #[derive(Clone, Copy)]
