@@ -201,7 +201,7 @@ impl<Core: Shuffler> Rng<Core> {
     }
     pub fn next(&mut self) -> u64 {
         let r = self.state;
-        // shouldn't loop long, as each iteration has an uncorrelated probability of being below range, for most shuffler's it's better odds than a coin flip each time. Shufflers should have a full period (and are tested) so looping forever should be impossible.
+        // shouldn't loop long, as each iteration has an uncorrelated probability of being below range, for most shufflers it's better odds than a coin flip each time. Shufflers should have a full period (and are tested) so looping forever should be impossible.
         loop {
             self.state = self.core.next(self.state);
             if self.core.state_to_output(self.state) < self.length {

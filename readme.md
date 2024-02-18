@@ -5,9 +5,9 @@ A library for combinatorics.
 A big feature is the ability to specify a big combinatorial space and then iterate over it in random order, without ever hitting the same state twice, and *without* having to generate and hold the entire state-space in memory. We acheive it by, essentially, conceiving the state space as a kind of number system, then iterating the indexes of every element in a random order using a ~~symmetric cipher~~ ~~PCG~~ linear feedback shift register.
 
 ```rust
-use mako_infinite_shuffle::{Shuffled, Indexing, rng::DefaultShuffler, Cross};
+use mako_infinite_shuffle::{light_shuffle, Cross, Indexing};
 fn main(){
-    let d = Shuffled::<_,DefaultShuffler>::new(Cross(0..3, 0..2));
+    let d = light_shuffle(Cross(0..3, 0..2));
     for i in 0..d.len() {
         println!("{:?}", d.get(i));
     }

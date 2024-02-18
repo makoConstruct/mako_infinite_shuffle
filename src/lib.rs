@@ -3,7 +3,7 @@
 use std::{borrow::Borrow, hash::Hash, marker::PhantomData, ops::Range};
 
 pub mod rng;
-use rng::Shuffler;
+use rng::{Shuffler, DefaultShuffler};
 
 /// if you like shuffling combinatorial objects, you may also like this combinatorial object library, I sure do
 pub use number_encoding;
@@ -270,6 +270,9 @@ impl Indexing for KSubmultisets {
 }
 
 /// psuedorandomly permutes the given Indexing
+/// ```rust
+/// Shuffled::<_, rng::DefaultShuffler>::new(Cross(0..3, 0..2))
+/// ```
 #[derive(Clone)]
 pub struct Shuffled<D, S> {
     v: D,
@@ -309,6 +312,11 @@ where
         self.v.get(self.r.state_to_output(n) as usize)
     }
 }
+
+pub fn light_shuffle<D>(d:D)-> Shuffled<D, DefaultShuffler> where D:Indexing {
+    Shuffled::<D, DefaultShuffler>::new(d)
+}
+// pub fn heavy_shuffle()-> Shuffled<D, CipherShuffler>
 
 //todo: also lcgshuffle (very fast, better statistical properties than lfsr), symmetric cipher shuffle (slow but cryptographically random), pcrng shuffle (better statistical properties than either of the other fast ones)
 
