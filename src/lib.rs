@@ -270,7 +270,7 @@ impl Indexing for KSubmultisets {
 }
 
 #[derive(Clone)]
-pub struct IndexVec<T> (Vec<T>);
+pub struct IndexVec<T> (pub Vec<T>);
 impl<T> Indexing for IndexVec<T> where T:Clone {
     type Item = T;
     fn len(&self) -> usize {
