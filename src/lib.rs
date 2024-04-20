@@ -269,6 +269,18 @@ impl Indexing for KSubmultisets {
     }
 }
 
+#[derive(Clone)]
+pub struct IndexVec<T> (Vec<T>);
+impl<T> Indexing for IndexVec<T> where T:Clone {
+    type Item = T;
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get(&self, at: usize) -> Self::Item {
+        self.0[at].clone()
+    }
+}
+
 /// psuedorandomly permutes the given Indexing
 /// ```rust
 /// Shuffled::<_, rng::DefaultShuffler>::new(Cross(0..3, 0..2))
@@ -322,12 +334,12 @@ pub fn light_shuffle<D>(d:D)-> Shuffled<D, DefaultShuffler> where D:Indexing {
 
 #[cfg(test)]
 mod tests {
-
+    
+    use super::*;
     use self::rng::Rng;
     use std::{cmp::Eq, fmt::Debug, hash::Hash};
     use rng::{LFSRF, LFSRFNTimes};
-
-    use super::*;
+    
     #[test]
     fn compound_lfsr() {
         let an = 8;
