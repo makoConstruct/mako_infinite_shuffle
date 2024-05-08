@@ -556,4 +556,10 @@ mod tests {
         for _e in o.iter() {}
         dyn_iter(o);
     }
+    
+    #[test]
+    fn truncate() {
+        let ti:Vec<usize> = Truncate(3, 10..30).iter().collect();
+        assert_eq!(&[10,11,12], &*ti);
+    }
 }
