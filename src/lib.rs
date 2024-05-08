@@ -281,6 +281,20 @@ impl<T> Indexing for IndexVec<T> where T:Clone {
     }
 }
 
+pub struct Truncate<I>(pub usize, pub I);
+impl<I> Indexing for Truncate<I> where I:Indexing {
+    type Item=I::Item;
+
+    fn len(&self) -> usize {
+        self.0.min(self.1.len())
+    }
+
+    fn get(&self, at: usize) -> Self::Item {
+        assert!(at < self.len());
+        self.1.get(at)
+    }
+}
+
 /// psuedorandomly permutes the given Indexing
 /// ```rust
 /// Shuffled::<_, rng::DefaultShuffler>::new(Cross(0..3, 0..2))
